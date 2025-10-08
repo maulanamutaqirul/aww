@@ -51,6 +51,63 @@ const changeIP = () => {
   });
 };
 
+// Auto inject function
+const gas = (url) => {
+  return new Promise((resolve, reject) => {
+    if (!url) return reject(new Error('url is required'));
+
+    console.log('🔄 Changing IP address...');
+
+    // Choose your python executable; 'py' is common on Windows, 'python'/'python3' on others
+    const pythonCmd = process.platform === 'win32' ? 'py' : 'python3';
+
+    // Pass args as an array
+    const pythonProcess = spawn(pythonCmd, ['memek.py', '--url', url]);
+
+    let stdout = '';
+    let stderr = '';
+
+    pythonProcess.stdout.on('data', (data) => {
+      const s = data.toString();
+      stdout += s;
+      console.log(`🐍 Python stdout: ${s}`);
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      const s = data.toString();
+      stderr += s;
+      console.error(`🐍 Python stderr: ${s}`);
+    });
+
+    // optional: timeout to avoid hangs
+    const timeoutMs = 30_000; // 30s
+    const timeout = setTimeout(() => {
+      pythonProcess.kill('SIGKILL');
+      reject(new Error('Python process timed out'));
+    }, timeoutMs);
+
+    pythonProcess.on('close', (code, signal) => {
+      clearTimeout(timeout);
+      if (code === 0) {
+        console.log('✅ Inject Complete');
+        resolve({ stdout, stderr, code });
+      } else {
+        console.error(`❌ Inject failed with code: ${code}, signal: ${signal}`);
+        const err = new Error(`Inject failed with code: ${code}`);
+        err.code = code;
+        err.stderr = stderr;
+        reject(err);
+      }
+    });
+
+    pythonProcess.on('error', (error) => {
+      clearTimeout(timeout);
+      console.error('❌ Failed to spawn python process:', error);
+      reject(error);
+    });
+  });
+};
+
 const runIteration = async (iteration) => {
   console.log(`\n🔄 Starting iteration ${iteration}`);
   
@@ -112,6 +169,14 @@ const runIteration = async (iteration) => {
         
         // Stop monitoring if we found the token URL
         if (url.includes('/lab?token=')) {
+          // Auto inject when token URL is found
+          try {
+            console.log(`🚀 [Iteration ${iteration}] Token URL found, starting auto inject...`);
+            await gas(url);
+            console.log(`✅ [Iteration ${iteration}] Auto inject completed successfully`);
+          } catch (error) {
+            console.error(`❌ [Iteration ${iteration}] Auto inject failed:`, error);
+          }
           stopMonitoring();
         }
       }
@@ -156,6 +221,14 @@ const runIteration = async (iteration) => {
             
             // Stop monitoring if we found the token URL
             if (currentUrl.includes('/lab?token=')) {
+              // Auto inject when token URL is found
+              try {
+                console.log(`🚀 [Iteration ${iteration}] Token URL found, starting auto inject...`);
+                await gas(currentUrl);
+                console.log(`✅ [Iteration ${iteration}] Auto inject completed successfully`);
+              } catch (error) {
+                console.error(`❌ [Iteration ${iteration}] Auto inject failed:`, error);
+              }
               stopMonitoring();
             }
           }
@@ -179,6 +252,14 @@ const runIteration = async (iteration) => {
           
           // Stop monitoring if we found the token URL
           if (url.includes('/lab?token=')) {
+            // Auto inject when token URL is found
+            try {
+              console.log(`🚀 [Iteration ${iteration}] Token URL found, starting auto inject...`);
+              await gas(url);
+              console.log(`✅ [Iteration ${iteration}] Auto inject completed successfully`);
+            } catch (error) {
+              console.error(`❌ [Iteration ${iteration}] Auto inject failed:`, error);
+            }
             stopMonitoring();
           }
         }
@@ -197,6 +278,14 @@ const runIteration = async (iteration) => {
           
           // Stop monitoring if we found the token URL
           if (url.includes('/lab?token=')) {
+            // Auto inject when token URL is found
+            try {
+              console.log(`🚀 [Iteration ${iteration}] Token URL found, starting auto inject...`);
+              await gas(url);
+              console.log(`✅ [Iteration ${iteration}] Auto inject completed successfully`);
+            } catch (error) {
+              console.error(`❌ [Iteration ${iteration}] Auto inject failed:`, error);
+            }
             stopMonitoring();
           }
         }
